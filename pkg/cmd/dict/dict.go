@@ -30,6 +30,8 @@ func NewCmdDict(f *cmdutil.Factory) *cobra.Command {
 				dictionary = dict_youdao.NewDictYoudao()
 			case "etymonline":
 				dictionary = dict_etymonline.NewDictEtymonline()
+			default:
+				return fmt.Errorf("unknown dictionary: %s", opts.Endpoint)
 			}
 
 			wordInfo, err := dictionary.Search(strings.Join(args, " "))
@@ -39,8 +41,10 @@ func NewCmdDict(f *cmdutil.Factory) *cobra.Command {
 			red := color.New(color.FgRed).SprintFunc()
 			gray := color.New(color.FgHiBlack).SprintFunc()
 			cyan := color.New(color.FgCyan).SprintFunc()
+			green := color.New(color.FgHiGreen).SprintFunc()
 			fmt.Fprintln(f.IOStreams.Out, red(wordInfo.Word))
 			for _, define := range wordInfo.Defines {
+				fmt.Fprintln(f.IOStreams.Out, green(strings.Join(define.Phonetics, " ")))
 				for _, s := range strings.Split(define.Definition, "\n") {
 					switch {
 					case strings.HasPrefix(s, "----"):
