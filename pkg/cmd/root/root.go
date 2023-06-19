@@ -2,6 +2,7 @@ package root
 
 import (
 	"github.com/spf13/cobra"
+	"gogobox/pkg/cmd/dict"
 	versionCmd "gogobox/pkg/cmd/version"
 	"gogobox/pkg/cmdutil"
 )
@@ -21,6 +22,7 @@ func NewCmdRoot(f *cmdutil.Factory) *cobra.Command {
 	//cmd.Flags().Bool("version", false, "Show version")
 
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
+	cmd.AddCommand(dict.NewCmdDict(f))
 
 	return cmd
 }
