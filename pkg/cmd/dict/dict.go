@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"gogobox/internal/config"
 	"gogobox/pkg/cmdutil"
 	"gogobox/pkg/dict"
 	dict_etymonline "gogobox/pkg/dict/etymonline"
@@ -13,12 +14,25 @@ import (
 
 type Options struct {
 	Endpoint string
+	Config   *config.DictConfig
 }
 
 func NewCmdDict(f *cmdutil.Factory) *cobra.Command {
 	opts := &Options{
 		Endpoint: "youdao",
 	}
+	if cfg, err := f.Config(); err != nil {
+		fmt.Println(f.IOStreams.Out, "[Err] read config failed")
+		return nil
+	} else {
+		opts.Config = cfg.Dict
+	}
+
+	notebook, err := dict.NewFileNotebook(opts.Config.NotebookPath)
+	if err != nil {
+		fmt.Println(f.IOStreams.Out, "[Err] create notebook failed")
+	}
+
 	cmd := &cobra.Command{
 		Use:   "dict <word>",
 		Short: "Look up the word in the dictionary",
@@ -43,17 +57,22 @@ func NewCmdDict(f *cmdutil.Factory) *cobra.Command {
 			cyan := color.New(color.FgCyan).SprintFunc()
 			green := color.New(color.FgHiGreen).SprintFunc()
 			fmt.Fprintln(f.IOStreams.Out, red(wordInfo.Word))
-			for _, define := range wordInfo.Defines {
-				fmt.Fprintln(f.IOStreams.Out, green(strings.Join(define.Phonetics, " ")))
-				for _, s := range strings.Split(define.Definition, "\n") {
-					switch {
-					case strings.HasPrefix(s, "----"):
-						fmt.Fprintln(f.IOStreams.Out, gray(s[4:]))
-					case strings.HasPrefix(s, "++++"):
-						fmt.Fprintln(f.IOStreams.Out, cyan(s[4:]))
-					default:
-						fmt.Fprintln(f.IOStreams.Out, s)
+			if len(wordInfo.Defines) > 0 {
+				for _, define := range wordInfo.Defines {
+					fmt.Fprintln(f.IOStreams.Out, green(strings.Join(define.Phonetics, " ")))
+					for _, s := range strings.Split(define.Definition, "\n") {
+						switch {
+						case strings.HasPrefix(s, "----"):
+							fmt.Fprintln(f.IOStreams.Out, gray(s[4:]))
+						case strings.HasPrefix(s, "++++"):
+							fmt.Fprintln(f.IOStreams.Out, cyan(s[4:]))
+						default:
+							fmt.Fprintln(f.IOStreams.Out, s)
+						}
 					}
+				}
+				if err := notebook.Mark(wordInfo.Word, dict.Learning); err != nil {
+					fmt.Fprintln(f.IOStreams.Out, "[Err] mark word failed")
 				}
 			}
 			return nil

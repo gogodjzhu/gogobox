@@ -23,6 +23,7 @@ func NewCmdRoot(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
 	cmd.AddCommand(dict.NewCmdDict(f))
+	cmd.AddCommand(dict.NewNotebookCmd(f))
 
 	return cmd
 }

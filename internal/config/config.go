@@ -1,72 +1,58 @@
 package config
 
 import (
-	"errors"
 	"gopkg.in/yaml.v3"
 	"io/ioutil"
 	"os"
-	"sync"
+	"path/filepath"
 )
 
-type Config interface {
-	Get(key string) (interface{}, error)
-	GetOrDefault(key string, value string) (string, error)
-	Set(key string, value string)
-	Write() error
+func configDir() string {
+	var path string
+	if a := os.Getenv("GOGOBOX_HOME"); a != "" {
+		path = a
+	} else {
+		d, _ := os.UserHomeDir()
+		path = filepath.Join(d, ".config", "gogobox")
+	}
+	return path
 }
 
-func NewConfig(filePath string) (Config, error) {
-	root := make(map[string]interface{})
+func NewConfig() (*Config, error) {
+	filePath := filepath.Join(configDir(), "config.yaml")
+	root := defaultConfig
 	bytes, err := ioutil.ReadFile(filePath)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
+	// overwrite default config
 	err = yaml.Unmarshal(bytes, &root)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	if len(root) == 0 {
-		err := yaml.Unmarshal([]byte(defaultGeneralEntries), &root)
-		if err != nil {
-			return nil, errors.New("invalid default config")
-		}
+	return &root, nil
+}
+
+func (c *Config) ToString() (string, error) {
+	bytes, err := yaml.Marshal(c)
+	if err != nil {
+		return "", err
 	}
-	return &cfg{filePath, root, sync.RWMutex{}}, nil
+	return string(bytes), nil
 }
 
-// Implements Config interface
-type cfg struct {
-	filePath string
-	root     map[string]interface{}
-	lock     sync.RWMutex
+type Config struct {
+	Version string      `yaml:"version"`
+	Dict    *DictConfig `yaml:"dict"`
 }
 
-func (c *cfg) Get(key string) (interface{}, error) {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	if c.root == nil {
-		return nil, errors.New("config is empty")
-	}
-	return c.root[key], nil
+type DictConfig struct {
+	NotebookPath string `yaml:"notebook"`
 }
 
-func (c *cfg) GetOrDefault(s string, s2 string) (string, error) {
-	panic("implement me")
+var defaultConfig = Config{
+	Version: "0.1",
+	Dict: &DictConfig{
+		NotebookPath: filepath.Join(configDir(), "notebook.json"),
+	},
 }
-
-func (c *cfg) Set(s2 string, s3 string) {
-	panic("implement me")
-}
-
-func (c *cfg) Write() error {
-	panic("implement me")
-}
-
-var defaultGeneralEntries = `
-# instance name
-node_name: gogobox-node1
-# sub-config
-hosts:
-	  # host name
-	  - name: gogobox-host1
-`

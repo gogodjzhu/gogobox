@@ -1,17 +1,22 @@
 package cmdutil
 
 import (
+	"gogobox/internal/config"
 	"io"
 	"os"
 )
 
 type Factory struct {
 	IOStreams *IOStreams
+
+	Config func() (*config.Config, error)
 }
 
 func NewFactory() *Factory {
 	f := &Factory{
 		IOStreams: ioStreams(),
+
+		Config: config.NewConfig,
 	}
 	return f
 }
