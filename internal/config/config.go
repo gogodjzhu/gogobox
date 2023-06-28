@@ -41,18 +41,29 @@ func (c *Config) ToString() (string, error) {
 	return string(bytes), nil
 }
 
+func (c *Config) Save() error {
+	bytes, err := yaml.Marshal(c)
+	if err != nil {
+		return err
+	}
+	filePath := filepath.Join(configDir(), "config.yaml")
+	return ioutil.WriteFile(filePath, bytes, 0644)
+}
+
 type Config struct {
 	Version string      `yaml:"version"`
 	Dict    *DictConfig `yaml:"dict"`
 }
 
 type DictConfig struct {
+	Endpoint     string `yaml:"endpoint"`
 	NotebookPath string `yaml:"notebook"`
 }
 
 var defaultConfig = Config{
 	Version: "0.1",
 	Dict: &DictConfig{
-		NotebookPath: filepath.Join(configDir(), "notebook.json"),
+		Endpoint:     "youdao",
+		NotebookPath: filepath.Join(configDir(), "notebook.yml"),
 	},
 }

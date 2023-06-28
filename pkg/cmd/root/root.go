@@ -7,7 +7,7 @@ import (
 	"gogobox/pkg/cmdutil"
 )
 
-func NewCmdRoot(f *cmdutil.Factory) *cobra.Command {
+func NewCmdRoot(f *cmdutil.Factory) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "gogobox <command> <subcommand> [flags]",
 		Short: "gogobox",
@@ -22,8 +22,18 @@ func NewCmdRoot(f *cmdutil.Factory) *cobra.Command {
 	//cmd.Flags().Bool("version", false, "Show version")
 
 	cmd.AddCommand(versionCmd.NewCmdVersion(f))
-	cmd.AddCommand(dict.NewCmdDict(f))
-	cmd.AddCommand(dict.NewNotebookCmd(f))
 
-	return cmd
+	if cmdDict, err := dict.NewCmdDict(f); err != nil {
+		return nil, err
+	} else {
+		cmd.AddCommand(cmdDict)
+	}
+
+	if cmdNotebook, err := dict.NewCmdNotebook(f); err != nil {
+		return nil, err
+	} else {
+		cmd.AddCommand(cmdNotebook)
+	}
+
+	return cmd, nil
 }

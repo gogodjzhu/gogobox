@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"gogobox/pkg/cmd/root"
 	"gogobox/pkg/cmdutil"
 	"os"
@@ -23,7 +24,11 @@ func main() {
 func mainRun() exitCode {
 	cmdFactory := cmdutil.NewFactory()
 
-	mainCmd := root.NewCmdRoot(cmdFactory)
+	mainCmd, err := root.NewCmdRoot(cmdFactory)
+	if err != nil {
+		fmt.Println(err)
+		return exitError
+	}
 	if cmd, err := mainCmd.ExecuteC(); err != nil {
 		if cmd != nil {
 			cmd.PrintErrln(err)

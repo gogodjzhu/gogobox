@@ -1,10 +1,9 @@
 package dict
 
 import (
+	"errors"
 	"fmt"
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"gogobox/internal/config"
 	"gogobox/pkg/cmdutil"
 	"gogobox/pkg/dict"
 	dict_etymonline "gogobox/pkg/dict/etymonline"
@@ -13,25 +12,18 @@ import (
 )
 
 type Options struct {
-	Endpoint string
-	Config   *config.DictConfig
+	Endpoint     string
+	NotebookPath string
 }
 
-func NewCmdDict(f *cmdutil.Factory) *cobra.Command {
-	opts := &Options{
-		Endpoint: "youdao",
-	}
-	if cfg, err := f.Config(); err != nil {
-		fmt.Println(f.IOStreams.Out, "[Err] read config failed")
-		return nil
-	} else {
-		opts.Config = cfg.Dict
-	}
-
-	notebook, err := dict.NewFileNotebook(opts.Config.NotebookPath)
+func NewCmdDict(f *cmdutil.Factory) (*cobra.Command, error) {
+	var opts Options
+	cfg, err := f.Config()
 	if err != nil {
-		fmt.Println(f.IOStreams.Out, "[Err] create notebook failed")
+		return nil, err
 	}
+	opts.NotebookPath = cfg.Dict.NotebookPath
+	opts.Endpoint = cfg.Dict.Endpoint
 
 	cmd := &cobra.Command{
 		Use:   "dict <word>",
@@ -45,40 +37,38 @@ func NewCmdDict(f *cmdutil.Factory) *cobra.Command {
 			case "etymonline":
 				dictionary = dict_etymonline.NewDictEtymonline()
 			default:
-				return fmt.Errorf("unknown dictionary: %s", opts.Endpoint)
+				return errors.New("unknown dictionary:" + opts.Endpoint)
 			}
 
 			wordInfo, err := dictionary.Search(strings.Join(args, " "))
 			if err != nil {
 				return err
 			}
-			red := color.New(color.FgRed).SprintFunc()
-			gray := color.New(color.FgHiBlack).SprintFunc()
-			cyan := color.New(color.FgCyan).SprintFunc()
-			green := color.New(color.FgHiGreen).SprintFunc()
-			fmt.Fprintln(f.IOStreams.Out, red(wordInfo.Word))
+			fmt.Fprintln(f.IOStreams.Out, wordInfo.RenderString())
 			if len(wordInfo.Defines) > 0 {
-				for _, define := range wordInfo.Defines {
-					fmt.Fprintln(f.IOStreams.Out, green(strings.Join(define.Phonetics, " ")))
-					for _, s := range strings.Split(define.Definition, "\n") {
-						switch {
-						case strings.HasPrefix(s, "----"):
-							fmt.Fprintln(f.IOStreams.Out, gray(s[4:]))
-						case strings.HasPrefix(s, "++++"):
-							fmt.Fprintln(f.IOStreams.Out, cyan(s[4:]))
-						default:
-							fmt.Fprintln(f.IOStreams.Out, s)
-						}
-					}
+				notebook, err := dict.NewFileNotebook(opts.NotebookPath)
+				if err != nil {
+					return err
 				}
 				if err := notebook.Mark(wordInfo.Word, dict.Learning); err != nil {
-					fmt.Fprintln(f.IOStreams.Out, "[Err] mark word failed")
+					return err
+				}
+			}
+			return nil
+		},
+		PostRunE: func(cmd *cobra.Command, args []string) error {
+			if opts.Endpoint != cfg.Dict.Endpoint || opts.NotebookPath != cfg.Dict.NotebookPath {
+				cfg.Dict.Endpoint = opts.Endpoint
+				cfg.Dict.NotebookPath = opts.NotebookPath
+				if err := cfg.Save(); err != nil {
+					return err
 				}
 			}
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&opts.Endpoint, "endpoint", "e", "youdao", "Specify the dictionary, youdao or etymonline")
-	return cmd
+	cmd.Flags().StringVarP(&opts.Endpoint, "endpoint", "e", opts.Endpoint, "Specify the dictionary, youdao or etymonline")
+	cmd.Flags().StringVarP(&opts.NotebookPath, "notebook", "n", opts.NotebookPath, "Specify the notebook path")
+	return cmd, nil
 }
