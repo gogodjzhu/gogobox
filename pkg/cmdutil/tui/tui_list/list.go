@@ -5,6 +5,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	list_fancy "gogobox/pkg/cmdutil/tui/tui_list_fancy"
 )
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
@@ -24,7 +25,7 @@ type CallbackFunc struct {
 	Keys             []string
 	ShortDescription string
 	FullDescription  string
-	Callback         func(option Option)
+	Callback         func(option Option) []Option
 }
 
 func (i Option) Title() string       { return i.title }
@@ -33,7 +34,7 @@ func (i Option) FilterValue() string { return i.title }
 
 type model struct {
 	list             list.Model
-	key2callbackFunc map[string]func(option Option)
+	key2callbackFunc map[string]func(option Option) []Option
 }
 
 func NewModel(title string, options []Option, callback []CallbackFunc) tea.Model {
@@ -41,10 +42,10 @@ func NewModel(title string, options []Option, callback []CallbackFunc) tea.Model
 	for _, option := range options {
 		items = append(items, option)
 	}
-	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
+	l := list.New(items, list_fancy.NewDefaultDelegate(), 0, 0)
 	l.Title = title
 
-	k2cMap := make(map[string]func(option Option))
+	k2cMap := make(map[string]func(option Option) []Option)
 	shortHelpKeys := make([]key.Binding, 0)
 	fullHelpKeys := make([]key.Binding, 0)
 	for _, cb := range callback {
@@ -81,9 +82,14 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if callbackFunc, ok := m.key2callbackFunc[msg.String()]; ok {
-			callbackFunc(m.list.SelectedItem().(Option))
-			return m, tea.Quit
+		if callbackFunc, ok := m.key2callbackFunc[msg.String()]; ok && m.list.SelectedItem() != nil {
+			if options := callbackFunc(m.list.SelectedItem().(Option)); options != nil {
+				var items []list.Item
+				for _, option := range options {
+					items = append(items, option)
+				}
+				m.list.SetItems(items)
+			}
 		}
 		switch msg.String() {
 		case "ctrl+c", "q", "esc":

@@ -45,27 +45,46 @@ func NewCmdNotebook(f *cmdutil.Factory) (*cobra.Command, error) {
 					{
 						Keys:            []string{"enter"},
 						FullDescription: "look up selected word",
-						Callback: func(option tui_list.Option) {
+						Callback: func(option tui_list.Option) []tui_list.Option {
 							dictionary := dict_youdao.NewDictYoudao()
-							wordInfo, _ := dictionary.Search(option.Title())
-							fmt.Fprintln(f.IOStreams.Out, wordInfo.RenderString())
-							if len(wordInfo.Defines) > 0 {
-								if err := notebook.Mark(wordInfo.Word, dict.Learning); err != nil {
-									fmt.Fprintln(f.IOStreams.Out, "[Err] mark word failed")
+							words, err := notebook.List()
+							if err != nil {
+								fmt.Fprintln(f.IOStreams.Out, "[Err] list words failed")
+								return nil
+							}
+							options := make([]tui_list.Option, len(words))
+							for i, word := range words {
+								if option.Title() != word.Word {
+									options[i] = tui_list.NewOption(word.Word,
+										fmt.Sprintf("lookupTimes:%d", word.LookupTimes))
+								} else {
+									wordInfo, _ := dictionary.Search(option.Title())
+									options[i] = tui_list.NewOption(word.Word,
+										wordInfo.RenderString())
 								}
 							}
+							return options
 						},
 					},
 					{
 						Keys:             []string{"d"},
 						ShortDescription: "delete",
 						FullDescription:  "delete selected word",
-						Callback: func(option tui_list.Option) {
+						Callback: func(option tui_list.Option) []tui_list.Option {
 							if err := notebook.Mark(option.Title(), dict.Delete); err != nil {
 								fmt.Fprintln(f.IOStreams.Out, "[Err] mark word failed")
-							} else {
-								fmt.Fprintln(f.IOStreams.Out, "delete word["+option.Title()+"] success")
 							}
+							words, err := notebook.List()
+							if err != nil {
+								fmt.Fprintln(f.IOStreams.Out, "[Err] list words failed")
+								return nil
+							}
+							options := make([]tui_list.Option, len(words))
+							for i, word := range words {
+								options[i] = tui_list.NewOption(word.Word,
+									fmt.Sprintf("lookupTimes:%d", word.LookupTimes))
+							}
+							return options
 						},
 					},
 				})
@@ -74,7 +93,7 @@ func NewCmdNotebook(f *cmdutil.Factory) (*cobra.Command, error) {
 			default:
 				return fmt.Errorf("unknown operation: %s", opts.Op)
 			}
-			_, err = tea.NewProgram(model).Run()
+			_, err = tea.NewProgram(model, tea.WithAltScreen()).Run()
 			return err
 		},
 		PostRunE: func(cmd *cobra.Command, args []string) error {

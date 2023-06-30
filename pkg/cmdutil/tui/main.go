@@ -42,22 +42,24 @@ func TestTextInput() {
 
 func TestList() {
 	p := tea.NewProgram(tui_list.NewModel("", []tui_list.Option{
-		tui_list.NewOption("apple", "apple is good"),
+		tui_list.NewOption("apple", "apple is good\napple is very good"),
 		tui_list.NewOption("banana", "banana is good"),
 		tui_list.NewOption("orange", "orange is good"),
 	}, []tui_list.CallbackFunc{
 		{
 			Keys: []string{"h"},
-			Callback: func(option tui_list.Option) {
+			Callback: func(option tui_list.Option) []tui_list.Option {
 				fmt.Println("Press key:h, You select:", option.Title())
+				return nil
 			},
 			ShortDescription: "hKey",
 			FullDescription:  "h for a key full description",
 		},
 		{
 			Keys: []string{"n"},
-			Callback: func(option tui_list.Option) {
+			Callback: func(option tui_list.Option) []tui_list.Option {
 				fmt.Println("Press key:n, You select:", option.Title())
+				return nil
 			},
 			ShortDescription: "nKey",
 			FullDescription:  "n for a key full description",
