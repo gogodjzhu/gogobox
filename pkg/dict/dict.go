@@ -54,6 +54,27 @@ func (f *WordInfo) RenderString() string {
 	return str
 }
 
+func (f *WordInfo) RawString() string {
+	var str string
+	str += f.Word + "\n"
+	if len(f.Defines) > 0 {
+		for _, define := range f.Defines {
+			str += strings.Join(define.Phonetics, " ") + "\n"
+			for _, s := range strings.Split(define.Definition, "\n") {
+				switch {
+				case strings.HasPrefix(s, "----"):
+					str += s[4:] + "\n"
+				case strings.HasPrefix(s, "++++"):
+					str += s[4:] + "\n"
+				default:
+					str += s + "\n"
+				}
+			}
+		}
+	}
+	return str
+}
+
 type WordDefine struct {
 	Phonetics  []string `yaml:"phonetics"`
 	Definition string   `yaml:"definition"`

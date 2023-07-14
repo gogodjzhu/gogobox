@@ -35,5 +35,11 @@ func NewCmdRoot(f *cmdutil.Factory) (*cobra.Command, error) {
 		cmd.AddCommand(cmdNotebook)
 	}
 
+	if cmdServer, err := dict.NewCmdServer(f); err != nil {
+		return nil, err
+	} else {
+		cmd.AddCommand(cmdServer)
+	}
+
 	return cmd, nil
 }
