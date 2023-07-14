@@ -28,7 +28,7 @@ func NewCmdDict(f *cmdutil.Factory) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "dict <word>",
 		Short: "Look up the word in the dictionary",
-		Long:  "Look up the word in the dictionary, you can sepecify the dictionary by option",
+		Long:  "Look up the word in the dictionary, you can specify the dictionary by option",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var dictionary dict.Dict
 			switch opts.Endpoint {
