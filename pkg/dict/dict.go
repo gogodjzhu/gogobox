@@ -26,18 +26,18 @@ const (
 )
 
 func NewDict(conf *config.DictConfig) (Dict, error) {
-	switch Endpoint(conf.Endpoint) {
+	switch Endpoint(conf.Default) {
 	case Youdao:
-		return dict_youdao.NewDictYoudao(conf.YoudaoConfig)
+		return dict_youdao.NewDictYoudao(conf.Parameters)
 	case Etymonline:
-		return dict_etymonline.NewDictEtymonline(conf.EtymonineConfig)
+		return dict_etymonline.NewDictEtymonline(conf.Parameters)
 	case Ecdict:
-		return dict_ecdict.NewDictEcdit(conf.EcdictConfig)
+		return dict_ecdict.NewDictEcdit(conf.Parameters)
 	case Chatgpt:
-		return dict_chatgpt.NewDictChatgpt(conf.ChatgptConfig)
+		return dict_chatgpt.NewDictChatgpt(conf.Parameters)
 	case MWebster:
-		return dict_mwebster.NewDictMWebster(conf.MWebsterConfig)
+		return dict_mwebster.NewDictMWebster(conf.Parameters)
 	default:
-		return nil, buzz_error.InvalidEndpoint(conf.Endpoint)
+		return nil, buzz_error.InvalidEndpoint(conf.Default)
 	}
 }

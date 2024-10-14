@@ -17,7 +17,7 @@ func NewCmdNotebook(f *cmdutil.Factory) (*cobra.Command, error) {
 	}
 
 	var op string
-	var chapter string
+	var notebook string
 	cmd := &cobra.Command{
 		Use:   "chapter <word>",
 		Short: "Learning words in chapter",
@@ -46,7 +46,7 @@ func NewCmdNotebook(f *cmdutil.Factory) (*cobra.Command, error) {
 						Keys:            []string{"enter"},
 						FullDescription: "look up selected word",
 						Callback: func(selectedOption tui_list.OptionEntity) []tui_list.OptionEntity {
-							dictionary, err := dict_youdao.NewDictYoudao(cfg.Dict.YoudaoConfig)
+							dictionary, err := dict_youdao.NewDictYoudao(cfg.Dict.Parameters)
 							if err != nil {
 								_, _ = fmt.Fprintln(f.IOStreams.Out, "[Err] init dictionary failed")
 								return nil
@@ -110,16 +110,16 @@ func NewCmdNotebook(f *cmdutil.Factory) (*cobra.Command, error) {
 			return err
 		},
 		PostRunE: func(cmd *cobra.Command, args []string) error {
-			if chapter == cfg.Notebook.CurrentChapter {
+			if notebook == cfg.Notebook.Default {
 				return nil
 			}
-			cfg.Notebook.CurrentChapter = chapter
+			cfg.Notebook.Default = notebook
 			return cfg.Save()
 		},
 	}
 
 	cmd.Flags().StringVarP(&op, "operation", "o", "review", "Specify operation, exam or review")
-	cmd.Flags().StringVarP(&chapter, "chapter", "c", cfg.Notebook.CurrentChapter, "Specify chapter name")
+	cmd.Flags().StringVarP(&notebook, "notebook", "n", cfg.Notebook.Default, "Specify notebook name")
 	return cmd, nil
 }
 

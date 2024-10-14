@@ -92,7 +92,7 @@ func TestReadConfigSpecified(t *testing.T) {
 			wantErr: false,
 			prevFunc: func(args args) bool {
 				conf.Common.ConfigFilename = args.configFilename
-				conf.Common.HomeDir = "/tmp/update"
+				conf.Common.BasePath = "/tmp/update"
 				return conf.Save() == nil
 			},
 			postFunc: func(got *Config, args args) bool {

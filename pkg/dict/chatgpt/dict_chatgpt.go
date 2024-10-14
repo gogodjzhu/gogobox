@@ -19,13 +19,22 @@ type DictChatgpt struct {
 	key          string
 }
 
-func NewDictChatgpt(conf *config.DictChatgptConfig) (*DictChatgpt, error) {
-	return &DictChatgpt{
-		resourceName: conf.ResourceName,
-		deploymentId: conf.DeploymentId,
-		apiVersion:   conf.ApiVersion,
-		key:          conf.Key,
-	}, nil
+func NewDictChatgpt(params map[string]interface{}) (*DictChatgpt, error) {
+	var ok bool
+	dict := &DictChatgpt{}
+	if dict.resourceName, ok = params[config.DictConfigChatgptResource].(string); !ok {
+		return nil, errors.New("resourceName is required")
+	}
+	if dict.deploymentId, ok = params[config.DictConfigChatgptDeploymentid].(string); !ok {
+		return nil, errors.New("deploymentId is required")
+	}
+	if dict.apiVersion, ok = params[config.DictConfigChatgptApiversion].(string); !ok {
+		return nil, errors.New("apiVersion is required")
+	}
+	if dict.key, ok = params[config.DictConfigChatgptKey].(string); !ok {
+		return nil, errors.New("key is required")
+	}
+	return dict, nil
 }
 
 func (d *DictChatgpt) Search(word string) (*entity.WordItem, error) {

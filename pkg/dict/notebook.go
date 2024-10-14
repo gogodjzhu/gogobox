@@ -25,16 +25,21 @@ const (
 type Notebooks interface {
 	Mark(word string, action Action) (*entity.WordNote, error)
 	ListNotes() ([]*entity.WordNote, error)
-	ListChapter() ([]string, error)
+	ListNotebooks() ([]string, error)
 }
 
 func OpenNotebook(conf *config.NotebookConfig) (Notebooks, error) {
-	currentNotebook := conf.CurrentChapter
-	/* fileNotebook */
-	if conf.FileNotebookConfig != nil {
-		return openOrCreateFileNotebook(conf.FileNotebookConfig, currentNotebook)
+	var ok bool
+	filenotebook := &fileNotebook{}
+	if filenotebook.directory, ok = conf.Parameters[config.NotebookConfigNotebookBasepath].(string); !ok {
+		return nil, errors.New("[Err] invalid notebook base path")
 	}
-	return nil, errors.New("[Err] notebook named " + currentNotebook + " not found")
+	filenotebook.filename = filepath.Join(filenotebook.directory, filenotebook.notebookName+".yaml")
+	filenotebook.notebookName = conf.Default
+	if err := filenotebook.init(); err != nil {
+		return nil, err
+	}
+	return filenotebook, nil
 }
 
 type fileNotebook struct {
@@ -43,26 +48,22 @@ type fileNotebook struct {
 	filename     string
 }
 
-func openOrCreateFileNotebook(conf *config.NotebookFileNotebookConfig, notebookName string) (*fileNotebook, error) {
-	filename := filepath.Join(conf.Directory, notebookName+".yaml")
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		err := os.MkdirAll(conf.Directory, 0755)
+func (f *fileNotebook) init() error {
+	if _, err := os.Stat(f.filename); os.IsNotExist(err) {
+		basePath := filepath.Dir(f.filename)
+		err := os.MkdirAll(basePath, 0755)
 		if err != nil {
-			return nil, errors.New("[Err] create notebook directory failed")
+			return errors.New("[Err] create notebook basepath failed")
 		}
-		f, err := os.Create(filename)
+		fn, err := os.Create(f.filename)
 		if err != nil {
-			return nil, errors.New("[Err] create notebook chapter file failed")
+			return errors.New("[Err] create notebook file failed")
 		}
-		_ = f.Close()
+		_ = fn.Close()
 	} else if err != nil {
-		return nil, errors.New("[Err] open notebook chapter file failed")
+		return errors.New("[Err] open notebook notebook file failed")
 	}
-	return &fileNotebook{
-		directory:    conf.Directory,
-		notebookName: notebookName,
-		filename:     filename,
-	}, nil
+	return nil
 }
 
 func (f *fileNotebook) Mark(word string, action Action) (*entity.WordNote, error) {
@@ -117,12 +118,12 @@ func (f *fileNotebook) ListNotes() ([]*entity.WordNote, error) {
 	return notes, nil
 }
 
-func (f *fileNotebook) ListChapter() ([]string, error) {
+func (f *fileNotebook) ListNotebooks() ([]string, error) {
 	files, err := os.ReadDir(f.directory)
 	if err != nil {
 		return nil, errors.New("[Err] list notebook directory failed")
 	}
-	var chapters []string
+	var notebooks []string
 	for _, file := range files {
 		if file.IsDir() {
 			continue
@@ -133,20 +134,20 @@ func (f *fileNotebook) ListChapter() ([]string, error) {
 			continue
 		}
 		filename = strings.TrimSuffix(filename, ".yaml")
-		chapters = append(chapters, filename)
+		notebooks = append(notebooks, filename)
 	}
-	return chapters, nil
+	return notebooks, nil
 }
 
 func (f *fileNotebook) readNote() ([]*entity.WordNote, error) {
 	bytes, err := os.ReadFile(f.filename)
 	if err != nil {
-		return nil, errors.New("[Err] read notebook file failed")
+		return nil, errors.New("[Err] read notebook file failed, err:" + err.Error())
 	}
 	var notes []*entity.WordNote
 	err = yaml.Unmarshal(bytes, &notes)
 	if err != nil {
-		return nil, errors.New("[Err] unmarshal notebook file failed")
+		return nil, errors.New("[Err] unmarshal notebook file failed err:" + err.Error())
 	}
 
 	// sort notes by lookup times
@@ -180,7 +181,7 @@ type sqlNotebook struct {
 
 type SQLNotebookWordNote struct {
 	WordId         string `gorm:"word_id"`
-	Chapter        string `gorm:"chapter"`
+	notebook       string `gorm:"notebook"`
 	Word           string `gorm:"word"`
 	LookupTimes    int    `gorm:"lookup_times"`
 	CreateTime     int64  `gorm:"create_time"`
@@ -207,13 +208,13 @@ func (s *sqlNotebook) Mark(word string, action Action) (*entity.WordNote, error)
 	now := time.Now().Unix()
 	switch action {
 	case Learning:
-		sql = "INSERT INTO word_note (word_id, chapter, word, lookup_times, create_time, last_lookup_time) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lookup_times = lookup_times + 1, last_lookup_time = ?"
+		sql = "INSERT INTO word_note (word_id, notebook, word, lookup_times, create_time, last_lookup_time) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lookup_times = lookup_times + 1, last_lookup_time = ?"
 		params = []interface{}{entity.WordId(word), s.notebookName, word, 1, now, now, now}
 	case Learned:
-		sql = "INSERT INTO word_note (word_id, chapter, word, lookup_times, create_time, last_lookup_time) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lookup_times = lookup_times - 1, last_lookup_time = ?"
+		sql = "INSERT INTO word_note (word_id, notebook, word, lookup_times, create_time, last_lookup_time) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lookup_times = lookup_times - 1, last_lookup_time = ?"
 		params = []interface{}{entity.WordId(word), s.notebookName, word, 1, now, now, now}
 	case Delete:
-		sql = "DELETE FROM word_note WHERE chapter = ? AND word_id = ?"
+		sql = "DELETE FROM word_note WHERE notebook = ? AND word_id = ?"
 		params = []interface{}{s.notebookName, entity.WordId(word)}
 	}
 	tx := s.db.Exec(sql, params...)
@@ -227,7 +228,7 @@ func (s *sqlNotebook) Mark(word string, action Action) (*entity.WordNote, error)
 		return nil, nil
 	}
 	var updateWordNote SQLNotebookWordNote
-	tx = s.db.First(&updateWordNote, "chapter = ? AND word_id = ?", s.notebookName, entity.WordId(word))
+	tx = s.db.First(&updateWordNote, "notebook = ? AND word_id = ?", s.notebookName, entity.WordId(word))
 	tx.Order("create_time DESC")
 	if tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "[Err] get word note failed")
@@ -237,7 +238,7 @@ func (s *sqlNotebook) Mark(word string, action Action) (*entity.WordNote, error)
 
 func (s *sqlNotebook) ListNotes() ([]*entity.WordNote, error) {
 	var notes []*SQLNotebookWordNote
-	tx := s.db.Find(&notes, "chapter = ?", s.notebookName)
+	tx := s.db.Find(&notes, "notebook = ?", s.notebookName)
 	tx.Order("create_time DESC")
 	if tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "[Err] list word note failed")
@@ -249,11 +250,11 @@ func (s *sqlNotebook) ListNotes() ([]*entity.WordNote, error) {
 	return wordNotes, nil
 }
 
-func (s *sqlNotebook) ListChapter() ([]string, error) {
-	var chapters []string
-	tx := s.db.Model(&SQLNotebookWordNote{}).Distinct("chapter").Find(&chapters)
+func (s *sqlNotebook) ListNotebooks() ([]string, error) {
+	var notebooks []string
+	tx := s.db.Model(&SQLNotebookWordNote{}).Distinct("notebook").Find(&notebooks)
 	if tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "[Err] list chapter failed")
+		return nil, errors.Wrap(tx.Error, "[Err] list notebook failed")
 	}
-	return chapters, nil
+	return notebooks, nil
 }

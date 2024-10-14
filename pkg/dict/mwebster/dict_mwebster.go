@@ -14,17 +14,20 @@ import (
 )
 
 type DictMWebster struct {
-	conf *config.DictMWebsterConfig
+	key string
 }
 
-func NewDictMWebster(conf *config.DictMWebsterConfig) (*DictMWebster, error) {
-	return &DictMWebster{
-		conf: conf,
-	}, nil
+func NewDictMWebster(params map[string]interface{}) (*DictMWebster, error) {
+	var ok bool
+	dict := &DictMWebster{}
+	if dict.key, ok = params[config.DictConfigMWebsterKey].(string); !ok {
+		return nil, errors.New("missing mwebster.key in params")
+	}
+	return dict, nil
 }
 
 func (d *DictMWebster) Search(word string) (*entity.WordItem, error) {
-	url := "https://www.dictionaryapi.com/api/v3/references/collegiate/json/" + word + "?key=" + d.conf.Key
+	url := "https://www.dictionaryapi.com/api/v3/references/collegiate/json/" + word + "?key=" + d.key
 	result, err := util.SendGet(url, nil, func(response *http.Response) (interface{}, error) {
 		if response.StatusCode != 200 {
 			return nil, errors.New("failed to sendGet")

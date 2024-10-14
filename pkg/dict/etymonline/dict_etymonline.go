@@ -3,7 +3,6 @@ package dict_etymonline
 import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/pkg/errors"
-	"gogobox/internal/config"
 	"gogobox/internal/util"
 	"gogobox/pkg/dict/entity"
 	"net/http"
@@ -14,13 +13,10 @@ import (
 const Host = "https://www.etymonline.com"
 
 type DictEtymonline struct {
-	conf *config.DictEtymonineConfig
 }
 
-func NewDictEtymonline(conf *config.DictEtymonineConfig) (*DictEtymonline, error) {
-	return &DictEtymonline{
-		conf: conf,
-	}, nil
+func NewDictEtymonline(params map[string]interface{}) (*DictEtymonline, error) {
+	return &DictEtymonline{}, nil
 }
 
 func (d *DictEtymonline) Search(word string) (*entity.WordItem, error) {

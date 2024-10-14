@@ -5,7 +5,6 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/pkg/errors"
 	"gogobox/internal/buzz_error"
-	"gogobox/internal/config"
 	"gogobox/internal/util"
 	"gogobox/pkg/dict/entity"
 	"net/http"
@@ -16,13 +15,10 @@ import (
 const Host = "https://dict.youdao.com"
 
 type DictYoudao struct {
-	conf *config.DictYoudaoConfig
 }
 
-func NewDictYoudao(conf *config.DictYoudaoConfig) (*DictYoudao, error) {
-	return &DictYoudao{
-		conf: conf,
-	}, nil
+func NewDictYoudao(params map[string]interface{}) (*DictYoudao, error) {
+	return &DictYoudao{}, nil
 }
 
 func (d *DictYoudao) Search(word string) (*entity.WordItem, error) {

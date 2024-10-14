@@ -79,6 +79,11 @@ func (c *Config) Save() error {
 	if err != nil {
 		return errors.Wrap(err, "failed marshal config")
 	}
+	dir := filepath.Dir(c.Common.ConfigFilename)
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed create config dir: %s", dir))
+	}
 	return os.WriteFile(c.Common.ConfigFilename, bytes, 0644)
 }
 
@@ -87,81 +92,52 @@ type Config struct {
 	Common   *CommonConfig   `yaml:"common"`
 	Dict     *DictConfig     `yaml:"dict"`
 	Notebook *NotebookConfig `yaml:"notebook"`
-	Server   *ServerConfig   `yaml:"server"`
 }
 
 type CommonConfig struct {
-	HomeDir        string `yaml:"homeDir"`
+	BasePath       string `yaml:"basePath"`
 	ConfigFilename string `yaml:"configFilename"`
 }
 
 type DictConfig struct {
-	Endpoint        string               `yaml:"endpoint"`
-	EcdictConfig    *DictEcdictConfig    `yaml:"ecdictConfig"`
-	YoudaoConfig    *DictYoudaoConfig    `yaml:"youdaoConfig"`
-	EtymonineConfig *DictEtymonineConfig `yaml:"etymonineConfig"`
-	ChatgptConfig   *DictChatgptConfig   `yaml:"chatgptConfig"`
-	MWebsterConfig  *DictMWebsterConfig  `yaml:"mwebsterConfig"`
+	Default    string                 `yaml:"default"`
+	Parameters map[string]interface{} `yaml:"parameters"`
 }
 
-type DictEcdictConfig struct {
-	DBFilename string `yaml:"dbFilename"`
-}
-
-type DictYoudaoConfig struct {
-}
-
-type DictEtymonineConfig struct {
-}
-
-type DictMWebsterConfig struct {
-	Key string `yaml:"key"`
-}
-
-type DictChatgptConfig struct {
-	ResourceName string `yaml:"resourceName"`
-	DeploymentId string `yaml:"deploymentId"`
-	ApiVersion   string `yaml:"apiVersion"`
-	Key          string `yaml:"key"`
-}
+const (
+	DictConfigEcdictDbfilename    = "ecdict.dbfilename"
+	DictConfigMWebsterKey         = "mwebster.key"
+	DictConfigChatgptResource     = "chatgpt.resource"
+	DictConfigChatgptDeploymentid = "chatgpt.deploymentid"
+	DictConfigChatgptApiversion   = "chatgpt.apiversion"
+	DictConfigChatgptKey          = "chatgpt.key"
+)
 
 type NotebookConfig struct {
-	CurrentChapter     string                      `yaml:"currentChapter"`
-	FileNotebookConfig *NotebookFileNotebookConfig `yaml:"fileNotebookConfig"`
+	Default    string                 `yaml:"default"`
+	Parameters map[string]interface{} `yaml:"parameters"`
 }
 
-type NotebookFileNotebookConfig struct {
-	Directory string `yaml:"directory"`
-}
-
-type ServerConfig struct {
-	Port int    `yaml:"port"`
-	Root string `yaml:"root"`
-}
+const (
+	NotebookConfigNotebookBasepath = "notebook.basepath"
+)
 
 var defaultConfig = Config{
 	Version: "0.1",
 	Common: &CommonConfig{
-		HomeDir:        configDir(),
+		BasePath:       configDir(),
 		ConfigFilename: filepath.Join(configDir(), "config.yaml"),
 	},
 	Dict: &DictConfig{
-		Endpoint: "youdao",
-		EcdictConfig: &DictEcdictConfig{
-			DBFilename: filepath.Join(configDir(), "stardict.db"),
+		Default: "youdao",
+		Parameters: map[string]interface{}{
+			DictConfigEcdictDbfilename: filepath.Join(configDir(), "stardict.db"),
 		},
-		YoudaoConfig:    &DictYoudaoConfig{},
-		EtymonineConfig: &DictEtymonineConfig{},
-		MWebsterConfig:  &DictMWebsterConfig{},
 	},
 	Notebook: &NotebookConfig{
-		CurrentChapter: "default",
-		FileNotebookConfig: &NotebookFileNotebookConfig{
-			Directory: filepath.Join(configDir(), "notebooks"),
+		Default: "default",
+		Parameters: map[string]interface{}{
+			NotebookConfigNotebookBasepath: filepath.Join(configDir(), "notebooks"),
 		},
-	},
-	Server: &ServerConfig{
-		Port: 8080,
-		Root: "/",
 	},
 }

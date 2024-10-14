@@ -14,12 +14,16 @@ type DictEcdict struct {
 	db *gorm.DB
 }
 
-func NewDictEcdit(conf *config.DictEcdictConfig) (*DictEcdict, error) {
-	err := PrepareDBFile(conf)
+func NewDictEcdit(params map[string]interface{}) (*DictEcdict, error) {
+	dbfilename, ok := params[config.DictConfigEcdictDbfilename].(string)
+	if !ok {
+		return nil, errors.New("dbfilename not found")
+	}
+	err := PrepareDBFile(dbfilename)
 	if err != nil {
 		return nil, err
 	}
-	db, err := gorm.Open(sqlite.Open(conf.DBFilename), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(dbfilename), &gorm.Config{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open db file")
 	}
@@ -28,8 +32,8 @@ func NewDictEcdit(conf *config.DictEcdictConfig) (*DictEcdict, error) {
 	}, nil
 }
 
-func PrepareDBFile(conf *config.DictEcdictConfig) error {
-	_, err := os.Stat(conf.DBFilename)
+func PrepareDBFile(dbfilename string) error {
+	_, err := os.Stat(dbfilename)
 	if err != nil && errors.Is(err, os.ErrNotExist) {
 		// TODO download from url
 		return errors.New("db file not found")
