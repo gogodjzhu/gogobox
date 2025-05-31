@@ -242,10 +242,16 @@ func generateObjectName(filename string) string {
 		suffix = parts[len(parts)-1]
 	}
 
+	// Get current year for directory structure
+	now := time.Now()
+	year := now.Format("200601")
+
 	// Generate unique object name with timestamp and UUID
-	timestamp := time.Now().Format("20060102_150405")
+	timestamp := now.Format("20060102_150405")
 	uuidStr := uuid.NewV4().String()
-	return fmt.Sprintf("%s_%s.%s", timestamp, uuidStr, suffix)
+
+	// Return object name with year directory structure
+	return fmt.Sprintf("%s/%s_%s.%s", year, timestamp, uuidStr, suffix)
 }
 
 func getContentType(filename string) string {
