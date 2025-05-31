@@ -28,7 +28,6 @@ download, and bucket management. Use subcommands to perform specific operations.
 	return cmd
 }
 
-
 // MinIOConfig represents the configuration for MinIO operations
 type MinIOConfig struct {
 	// Endpoint is the MinIO server endpoint (e.g., "localhost:9000" or "s3.amazonaws.com")
@@ -45,9 +44,6 @@ type MinIOConfig struct {
 
 	// UseSSL indicates whether to use HTTPS for connection
 	UseSSL bool `json:"useSSL" yaml:"useSSL"`
-
-	// Region is the region of the MinIO server (optional, defaults to "us-east-1")
-	Region string `json:"region" yaml:"region"`
 }
 
 // Validate checks if the MinIO configuration is valid
@@ -80,6 +76,5 @@ func (c *MinIOConfig) GetObjectURL(objectName string) string {
 func NewDefaultConfig() *MinIOConfig {
 	return &MinIOConfig{
 		UseSSL: false,
-		Region: "us-east-1",
 	}
 }

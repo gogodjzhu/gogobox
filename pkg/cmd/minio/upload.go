@@ -1,37 +1,31 @@
 package minio
 
 import (
-	"errors"
 	"fmt"
-	"image"
-	"image/jpeg"
-	"image/png"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/gogodjzhu/gogobox/internal/util"
 	"github.com/gogodjzhu/gogobox/pkg/cmdutil"
 	"github.com/minio/minio-go/v6"
-	"github.com/nfnt/resize"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/cobra"
 )
 
 type UploadOptions struct {
-	Config       *MinIOConfig
-	AutoResize   bool
-	MaxSize      int64
-	ImageQuality int
-	PrintURLs   bool
+	Config     *MinIOConfig
+	AutoResize bool
+	MaxSize    int64
+	PrintURLs  bool
 }
 
 func NewCmdMinIOUpload(f *cmdutil.Factory) *cobra.Command {
 	opts := &UploadOptions{
-		Config:       NewDefaultConfig(),
-		AutoResize:   true,
-		MaxSize:      1024 * 1024, // 1MB
-		ImageQuality: 60,
-		PrintURLs:   true,
+		Config:     NewDefaultConfig(),
+		AutoResize: true,
+		MaxSize:    512 * 1024, // 512KB default max size for images
+		PrintURLs:  true,
 	}
 
 	cmd := &cobra.Command{
@@ -61,13 +55,10 @@ The command will:
 	cmd.Flags().StringVarP(&opts.Config.SecretAccessKey, "secret-key", "s", "", "MinIO secret access key (required)")
 	cmd.Flags().StringVarP(&opts.Config.BucketName, "bucket", "b", "", "MinIO bucket name (required)")
 	cmd.Flags().BoolVar(&opts.Config.UseSSL, "ssl", false, "Use SSL/TLS connection")
-	cmd.Flags().StringVar(&opts.Config.Region, "region", "us-east-1", "MinIO region")
 
 	// Upload options flags
 	cmd.Flags().BoolVar(&opts.AutoResize, "resize", true, "Automatically resize large images")
-	cmd.Flags().BoolVar(&opts.AutoResize, "no-resize", false, "Disable automatic image resizing")
-	cmd.Flags().Int64Var(&opts.MaxSize, "max-size", 1024*1024, "Maximum file size before resizing (in bytes)")
-	cmd.Flags().IntVar(&opts.ImageQuality, "quality", 60, "JPEG quality for resized images (1-100)")
+	cmd.Flags().Int64Var(&opts.MaxSize, "max-size", 512*1024, "Maximum file size in bytes after resize")
 	cmd.Flags().BoolVar(&opts.PrintURLs, "print-urls", true, "Print public URLs for uploaded files")
 
 	// Mark required flags
@@ -137,7 +128,7 @@ func processFiles(filenames []string, opts *UploadOptions) ([]string, error) {
 		}
 
 		// Process large image
-		processedFile, err := resizeImage(file, filename, opts)
+		processedFile, err := util.CompressImage(filename, opts.MaxSize, "jpeg")
 		file.Close()
 		if err != nil {
 			return nil, fmt.Errorf("failed to resize image %s: %w", filename, err)
@@ -156,45 +147,6 @@ func isImage(filename string) bool {
 		strings.HasSuffix(lower, ".jpeg")
 }
 
-func resizeImage(file *os.File, filename string, opts *UploadOptions) (string, error) {
-	// Reset file pointer
-	file.Seek(0, 0)
-
-	var img image.Image
-	var err error
-
-	switch {
-	case strings.HasSuffix(strings.ToLower(filename), ".png"):
-		img, err = png.Decode(file)
-	case strings.HasSuffix(strings.ToLower(filename), ".jpg") || strings.HasSuffix(strings.ToLower(filename), ".jpeg"):
-		img, err = jpeg.Decode(file)
-	default:
-		return "", errors.New("unsupported image format: " + filename)
-	}
-
-	if err != nil {
-		return "", fmt.Errorf("failed to decode image: %w", err)
-	}
-
-	// Resize image
-	resizedImg := resize.Resize(1080, 0, img, resize.Lanczos3)
-
-	// Create temporary file
-	tempFilename := fmt.Sprintf("/tmp/%s.jpeg", uuid.NewV1().String())
-	tempFile, err := os.Create(tempFilename)
-	if err != nil {
-		return "", fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer tempFile.Close()
-
-	// Encode as JPEG
-	if err := jpeg.Encode(tempFile, resizedImg, &jpeg.Options{Quality: opts.ImageQuality}); err != nil {
-		return "", fmt.Errorf("failed to encode resized image: %w", err)
-	}
-
-	return tempFilename, nil
-}
-
 func uploadFiles(filenames []string, opts *UploadOptions) ([]string, error) {
 	// Initialize MinIO client
 	minioClient, err := minio.New(opts.Config.Endpoint, opts.Config.AccessKeyID, opts.Config.SecretAccessKey, opts.Config.UseSSL)
@@ -202,17 +154,31 @@ func uploadFiles(filenames []string, opts *UploadOptions) ([]string, error) {
 		return nil, fmt.Errorf("failed to create MinIO client: %w", err)
 	}
 
+	// Check if bucket exists
+	exists, err := minioClient.BucketExists(opts.Config.BucketName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check bucket existence: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("bucket '%s' does not exist", opts.Config.BucketName)
+	}
+
 	var urls []string
+	var uploadedObjects []string // Keep track of successfully uploaded objects for potential rollback
 
 	for _, filename := range filenames {
 		file, err := os.Open(filename)
 		if err != nil {
+			// Clean up any already uploaded files on error
+			cleanupUploadedFiles(minioClient, opts.Config.BucketName, uploadedObjects)
 			return nil, fmt.Errorf("failed to open file %s: %w", filename, err)
 		}
 
 		fileStat, err := file.Stat()
 		if err != nil {
 			file.Close()
+			// Clean up any already uploaded files on error
+			cleanupUploadedFiles(minioClient, opts.Config.BucketName, uploadedObjects)
 			return nil, fmt.Errorf("failed to get file stats for %s: %w", filename, err)
 		}
 
@@ -230,11 +196,18 @@ func uploadFiles(filenames []string, opts *UploadOptions) ([]string, error) {
 			fileStat.Size(),
 			minio.PutObjectOptions{ContentType: contentType},
 		)
+
+		// Close file immediately after upload
 		file.Close()
 
 		if err != nil {
+			// Clean up any already uploaded files on error
+			cleanupUploadedFiles(minioClient, opts.Config.BucketName, uploadedObjects)
 			return nil, fmt.Errorf("failed to upload file %s: %w", filename, err)
 		}
+
+		// Track successfully uploaded object
+		uploadedObjects = append(uploadedObjects, objectName)
 
 		// Generate public URL if requested
 		if opts.PrintURLs {
@@ -245,12 +218,20 @@ func uploadFiles(filenames []string, opts *UploadOptions) ([]string, error) {
 		}
 
 		// Clean up temporary files
-		if strings.HasPrefix(filename, "/tmp/") && strings.Contains(filename, uuid.NewV1().String()[:8]) {
+		if strings.HasPrefix(filename, "/tmp/") {
 			os.Remove(filename)
 		}
 	}
 
 	return urls, nil
+}
+
+// cleanupUploadedFiles removes objects that were successfully uploaded before an error occurred
+func cleanupUploadedFiles(client *minio.Client, bucketName string, objectNames []string) {
+	for _, objectName := range objectNames {
+		// Best effort cleanup - don't propagate errors from cleanup
+		client.RemoveObject(bucketName, objectName)
+	}
 }
 
 func generateObjectName(filename string) string {
