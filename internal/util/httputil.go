@@ -2,8 +2,12 @@ package util
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -60,4 +64,36 @@ func hostname(u string) (string, error) {
 		return "", err
 	}
 	return e.Hostname(), nil
+}
+
+// DownloadToTempFile downloads a file from the given URL and saves it to a temporary file in /tmp/.
+// It returns the path to the temporary file.
+func DownloadToTempFile(url string) (string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("failed to download %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to download %s: status %s", url, resp.Status)
+	}
+
+	ext := filepath.Ext(url)
+	if ext == "" {
+		ext = ".bin"
+	}
+	tmpFile, err := os.CreateTemp("/tmp", "gogobox_download_*"+ext)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer tmpFile.Close()
+
+	_, err = io.Copy(tmpFile, resp.Body)
+	if err != nil {
+		os.Remove(tmpFile.Name())
+		return "", fmt.Errorf("failed to write to temp file: %w", err)
+	}
+
+	return tmpFile.Name(), nil
 }

@@ -109,6 +109,15 @@ func processFiles(filenames []string, opts *UploadOptions) ([]string, error) {
 	processedFiles := make([]string, 0, len(filenames))
 
 	for _, filename := range filenames {
+		if strings.HasPrefix(filename, "http://") || strings.HasPrefix(filename, "https://") {
+			// Download the file to a temporary location
+			tmpFile, err := util.DownloadToTempFile(filename)
+			if err != nil {
+				return nil, fmt.Errorf("failed to download file %s: %w", filename, err)
+			}
+			filename = tmpFile
+		}
+
 		file, err := os.Open(filename)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open file %s: %w", filename, err)
